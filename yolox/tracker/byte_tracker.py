@@ -12,10 +12,12 @@ from .basetrack import BaseTrack, TrackState
 
 class STrack(BaseTrack):
     shared_kalman = KalmanFilter()
+    _next_id = 1  # Static variable to keep track of the next ID
+
     def __init__(self, tlwh, score):
 
         # wait activate
-        self._tlwh = np.asarray(tlwh, dtype=np.float)
+        self._tlwh = np.asarray(tlwh, dtype=float)
         self.kalman_filter = None
         self.mean, self.covariance = None, None
         self.is_activated = False
@@ -29,6 +31,16 @@ class STrack(BaseTrack):
             mean_state[7] = 0
         self.mean, self.covariance = self.kalman_filter.predict(mean_state, self.covariance)
 
+    @staticmethod
+    def reset_track_id():
+        STrack._next_id = 1  # Reset ID to 1
+  
+    @classmethod
+    def next_id(cls):
+        current_id = cls._next_id
+        cls._next_id += 1
+        return current_id
+  
     @staticmethod
     def multi_predict(stracks):
         if len(stracks) > 0:
@@ -144,18 +156,22 @@ class STrack(BaseTrack):
 
 class BYTETracker(object):
     def __init__(self, args, frame_rate=30):
-        self.tracked_stracks = []  # type: list[STrack]
-        self.lost_stracks = []  # type: list[STrack]
-        self.removed_stracks = []  # type: list[STrack]
+        self.reset()
 
-        self.frame_id = 0
         self.args = args
         #self.det_thresh = args.track_thresh
         self.det_thresh = args.track_thresh + 0.1
         self.buffer_size = int(frame_rate / 30.0 * args.track_buffer)
         self.max_time_lost = self.buffer_size
         self.kalman_filter = KalmanFilter()
-
+    
+    def reset(self):
+        STrack.reset_track_id()
+        self.tracked_stracks = []
+        self.lost_stracks = []
+        self.removed_stracks = []
+        self.frame_id = 0
+  
     def update(self, output_results, img_info, img_size):
         self.frame_id += 1
         activated_starcks = []
